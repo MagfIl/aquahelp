@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Comfortaa', cursive, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+@layer base {
+  html, body {
+    font-family: 'Comfortaa', cursive, system-ui, -apple-system, sans-serif;
+  }
+  
+  /* Smooth theme transitions */
+  *,
+  *::before,
+  *::after {
+    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* Water Ripple / Circular View Transition Animation */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-new(root) {
+  z-index: 1;
+}
