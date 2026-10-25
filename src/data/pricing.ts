@@ -7,6 +7,7 @@ import {
   PromosState,
   CalculationResult,
   TicketBreakdownItem,
+  OptimizationRecommendation,
 } from '../types';
 
 export const PRICING_MATRIX = {
@@ -111,77 +112,23 @@ export const PRIVILEGE_DOCUMENTS = [
   },
 ];
 
-export const PRESET_SCENARIOS = [
-  {
-    id: 'family',
-    title: 'Семья (2 взр + 1 реб)',
-    description: '2 взрослых + 1 ребенок (4–13 лет)',
-    counts: { adult: 2, teen: 0, child: 1, infant: 0, privilege: 0 },
-    groupPromo: 'none' as const,
-  },
-  {
-    id: 'promo40_group',
-    title: 'Промокод 40% на чек',
-    description: '2 взрослых + 1 подросток со скидкой 40% на весь чек',
-    counts: { adult: 2, teen: 1, child: 0, infant: 0, privilege: 0 },
-    groupPromo: 'promo40' as const,
-  },
-  {
-    id: 'group4',
-    title: 'Компания 4 взрослых (-30%)',
-    description: '4 взрослых с автоматической скидкой 30%',
-    counts: { adult: 4, teen: 0, child: 0, infant: 0, privilege: 0 },
-    groupPromo: 'group4' as const,
-  },
-  {
-    id: 'gtk_family',
-    title: 'Гости ГТК Суздаль (-30%)',
-    description: '2 взрослых + 2 ребенка по карте гостя отеля',
-    counts: { adult: 2, teen: 0, child: 2, infant: 0, privilege: 0 },
-    groupPromo: 'gtk' as const,
-  },
-  {
-    id: 'birthday',
-    title: 'Именинник с компанией (-30%)',
-    description: '3 взрослых + 1 подросток (скидка на всю группу)',
-    counts: { adult: 3, teen: 1, child: 0, infant: 0, privilege: 0 },
-    groupPromo: 'birthday' as const,
-  },
-  {
-    id: 'pensioners',
-    title: 'Льготные гости (2 пенсионера)',
-    description: '2 гостя по льготному тарифу (скидки не суммируются)',
-    counts: { adult: 0, teen: 0, child: 0, infant: 0, privilege: 2 },
-    groupPromo: 'none' as const,
-  },
-];
-
 /**
- * Calculates ticket totals, discounts, breakdowns and per-guest overtime
+ * Internal raw computation of tickets
  */
-export function calculateTickets(
+function computeRawTicketTotals(
   day: DayType,
   zone: ZoneType,
   duration: DurationType,
   counts: GuestCounts,
-  promos: PromosState,
-  overtimeMinutesRaw: number,
-  customOvertimeGuestsCount?: number
-): CalculationResult {
+  promos: PromosState
+) {
   const prices = PRICING_MATRIX[day][zone][duration];
-
-  // Total visitors
   const totalVisitors =
     counts.adult + counts.teen + counts.child + counts.infant + counts.privilege;
-
-  // Eligible for promos/coupons: adult, teen, child
   const eligibleVisitors = counts.adult + counts.teen + counts.child;
-
-  // Non-infant visitors: adult, teen, child, privilege (infant is EXCLUDED from overtime)
   const nonInfantVisitors =
     counts.adult + counts.teen + counts.child + counts.privilege;
 
-  // Clamp coupons count so they don't exceed eligible tickets
   const coupon100Count = Math.max(
     0,
     Math.min(promos.coupon100Count, eligibleVisitors)
@@ -192,7 +139,6 @@ export function calculateTickets(
     Math.min(promos.coupon60Count, remainingFor60)
   );
 
-  // Group / Check discount label
   let appliedGroupPromoLabel: string | null = null;
   let checkDiscountPercent = 0;
 
@@ -202,7 +148,7 @@ export function calculateTickets(
   } else if (promos.groupPromo === 'gtk') {
     appliedGroupPromoLabel = 'Проживание в ГТК «Суздаль» (-30%)';
     checkDiscountPercent = 30;
-  } else if (promos.groupPromo === 'group4') {
+  } else if (promos.groupPromo === 'group4' && nonInfantVisitors >= 4) {
     appliedGroupPromoLabel = 'Группа от 4 человек (-30%)';
     checkDiscountPercent = 30;
   } else if (promos.groupPromo === 'birthday') {
@@ -210,7 +156,6 @@ export function calculateTickets(
     checkDiscountPercent = 30;
   }
 
-  // Create standard individual tickets (eligible for discounts)
   interface SingleTicket {
     category: 'adult' | 'teen' | 'child';
     basePrice: number;
@@ -229,7 +174,6 @@ export function calculateTickets(
     standardTickets.push({ category: 'child', basePrice: prices.child, discountPercent: 0 });
   }
 
-  // Assign individual coupons first (100% first, then 60%) to high-value tickets
   let remaining100 = coupon100Count;
   let remaining60 = coupon60Count;
 
@@ -251,7 +195,6 @@ export function calculateTickets(
     }
   }
 
-  // Group tickets into breakdown items
   const breakdownGroups: Record<
     string,
     {
@@ -278,7 +221,6 @@ export function calculateTickets(
     breakdownGroups[key].quantity += 1;
   });
 
-  // Add Privileged category if count > 0 (NO discounts or coupons allowed)
   if (counts.privilege > 0) {
     breakdownGroups['privilege'] = {
       category: 'privilege',
@@ -290,7 +232,6 @@ export function calculateTickets(
     };
   }
 
-  // Add Infant category if count > 0 (0 ₽)
   if (counts.infant > 0) {
     breakdownGroups['infant'] = {
       category: 'infant',
@@ -331,7 +272,6 @@ export function calculateTickets(
     }
   );
 
-  // Subtotal without discount
   let baseSubtotal = breakdown.reduce(
     (sum, item) => sum + item.totalBeforeDiscount,
     0
@@ -341,7 +281,6 @@ export function calculateTickets(
     0
   );
 
-  // Flat fixed discount (if applicable)
   if (
     promos.customDiscountType === 'fixed' &&
     promos.customDiscountValue > 0 &&
@@ -356,16 +295,6 @@ export function calculateTickets(
 
   const grandTotal = Math.max(0, baseSubtotal - totalSavings);
 
-  // Overtime calculation: 10 rubles per minute PER GUEST (excluding infants!)
-  const overtimeGuestsCount =
-    typeof customOvertimeGuestsCount === 'number'
-      ? Math.max(0, Math.min(customOvertimeGuestsCount, nonInfantVisitors))
-      : nonInfantVisitors;
-
-  const overtimeMinutes = Math.max(0, overtimeMinutesRaw);
-  const overtimeFee = overtimeMinutes * 10 * overtimeGuestsCount;
-  const grandTotalWithOvertime = grandTotal + overtimeFee;
-
   return {
     totalVisitors,
     eligibleVisitors,
@@ -375,9 +304,172 @@ export function calculateTickets(
     grandTotal,
     breakdown,
     appliedGroupPromoLabel,
+    prices,
+  };
+}
+
+/**
+ * Calculates ticket totals, discounts, breakdowns, optimization recommendations and per-guest overtime
+ */
+export function calculateTickets(
+  day: DayType,
+  zone: ZoneType,
+  duration: DurationType,
+  counts: GuestCounts,
+  promos: PromosState,
+  overtimeMinutesRaw: number,
+  customOvertimeGuestsCount?: number
+): CalculationResult {
+  const current = computeRawTicketTotals(day, zone, duration, counts, promos);
+
+  // Overtime calculation: 10 rubles per minute PER GUEST (excluding infants!)
+  const overtimeGuestsCount =
+    typeof customOvertimeGuestsCount === 'number'
+      ? Math.max(0, Math.min(customOvertimeGuestsCount, current.nonInfantVisitors))
+      : current.nonInfantVisitors;
+
+  const overtimeMinutes = Math.max(0, overtimeMinutesRaw);
+  const overtimeFee = overtimeMinutes * 10 * overtimeGuestsCount;
+  const grandTotalWithOvertime = current.grandTotal + overtimeFee;
+
+  // Optimization Analysis:
+  // Find the strategy that gives the ABSOLUTE LOWEST price for the customer!
+  let optimization: OptimizationRecommendation | null = null;
+
+  interface Candidate {
+    grandTotal: number;
+    recommendedCounts: GuestCounts;
+    recommendedGroupPromo: typeof promos.groupPromo;
+    reason: string;
+  }
+
+  const candidates: Candidate[] = [];
+
+  // Candidate 1: Keep counts as they are, but activate 'group4' if party has 4+ non-infant guests and no promo is selected
+  if (current.nonInfantVisitors >= 4 && promos.groupPromo === 'none') {
+    const rawGroup4 = computeRawTicketTotals(day, zone, duration, counts, {
+      ...promos,
+      groupPromo: 'group4',
+    });
+    if (rawGroup4.grandTotal < current.grandTotal) {
+      const savings = current.grandTotal - rawGroup4.grandTotal;
+      let reason = '';
+      if (counts.privilege > 0) {
+        reason = `В группе ${current.nonInfantVisitors} чел. доступна скидка «Группа от 4 человек (-30%)». На тарифе «${duration === 'all_day' ? 'Весь день' : duration}» льготный тариф (${current.prices.privilege} ₽) выгоднее взрослого со скидкой (1 400 ₽), поэтому льготный билет сохранён, а к остальным билетам применена скидка 30%!`;
+      } else {
+        reason = `В заказе ${current.nonInfantVisitors} гостей — доступна акция «Группа от 4 человек (-30%)»! Это снизит чек с ${current.grandTotal.toLocaleString('ru-RU')} ₽ до ${rawGroup4.grandTotal.toLocaleString('ru-RU')} ₽ (экономия: ${savings.toLocaleString('ru-RU')} ₽).`;
+      }
+
+      candidates.push({
+        grandTotal: rawGroup4.grandTotal,
+        recommendedCounts: counts,
+        recommendedGroupPromo: 'group4',
+        reason,
+      });
+    }
+  }
+
+  // Candidate 2 & 3: If there are privilege tickets, test converting them to standard adults
+  if (counts.privilege > 0) {
+    const convertedCounts: GuestCounts = {
+      ...counts,
+      adult: counts.adult + counts.privilege,
+      privilege: 0,
+    };
+
+    // Candidate 2: Convert privilege to adult keeping current promos
+    const rawConvertedCurrentPromo = computeRawTicketTotals(
+      day,
+      zone,
+      duration,
+      convertedCounts,
+      promos
+    );
+    if (rawConvertedCurrentPromo.grandTotal < current.grandTotal) {
+      const savings = current.grandTotal - rawConvertedCurrentPromo.grandTotal;
+      let effectiveDiscount = 0;
+      if (promos.groupPromo === 'promo40') effectiveDiscount = 40;
+      else if (promos.groupPromo === 'gtk' || promos.groupPromo === 'birthday') effectiveDiscount = 30;
+      const adultDiscountedPrice = Math.round(current.prices.adult * (1 - effectiveDiscount / 100));
+
+      candidates.push({
+        grandTotal: rawConvertedCurrentPromo.grandTotal,
+        recommendedCounts: convertedCounts,
+        recommendedGroupPromo: promos.groupPromo,
+        reason: `Выгоднее оформить ${counts.privilege} льготн. как стандартные взрослые билеты со скидкой: ${adultDiscountedPrice} ₽ вместо ${current.prices.privilege} ₽ по льготному тарифу (экономия: ${savings.toLocaleString('ru-RU')} ₽, без документов на кассе).`,
+      });
+    }
+
+    // Candidate 3: Convert privilege to adult AND activate group4 (-30%) if party >= 4
+    if (current.nonInfantVisitors >= 4) {
+      const rawConvertedGroup4 = computeRawTicketTotals(
+        day,
+        zone,
+        duration,
+        convertedCounts,
+        { ...promos, groupPromo: 'group4' }
+      );
+      if (rawConvertedGroup4.grandTotal < current.grandTotal) {
+        const savings = current.grandTotal - rawConvertedGroup4.grandTotal;
+        const adultDiscountedPrice = Math.round(current.prices.adult * 0.7);
+
+        candidates.push({
+          grandTotal: rawConvertedGroup4.grandTotal,
+          recommendedCounts: convertedCounts,
+          recommendedGroupPromo: 'group4',
+          reason: `В группе ${current.nonInfantVisitors} чел. доступна скидка от 4 гостей (-30%). Выгоднее оформить ${counts.privilege} льготн. билетов как обычные взрослые с групповой скидкой 30%: ${adultDiscountedPrice} ₽ вместо ${current.prices.privilege} ₽ по льготе. Экономия: ${savings.toLocaleString('ru-RU')} ₽ (и без проверки документов на кассе)!`,
+        });
+      }
+    }
+  }
+
+  // Find candidate with lowest grandTotal
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => a.grandTotal - b.grandTotal);
+    const best = candidates[0];
+
+    if (best.grandTotal < current.grandTotal) {
+      let effectiveDiscount = 0;
+      if (best.recommendedGroupPromo === 'promo40') effectiveDiscount = 40;
+      else if (
+        best.recommendedGroupPromo === 'group4' ||
+        best.recommendedGroupPromo === 'gtk' ||
+        best.recommendedGroupPromo === 'birthday'
+      ) {
+        effectiveDiscount = 30;
+      }
+
+      const adultDiscountedPrice = Math.round(
+        current.prices.adult * (1 - effectiveDiscount / 100)
+      );
+
+      optimization = {
+        hasBetterOption: true,
+        savingsAmount: current.grandTotal - best.grandTotal,
+        currentTotal: current.grandTotal,
+        optimizedTotal: best.grandTotal,
+        recommendedCounts: best.recommendedCounts,
+        recommendedGroupPromo: best.recommendedGroupPromo,
+        adultDiscountedPrice,
+        privilegePrice: current.prices.privilege,
+        reason: best.reason,
+      };
+    }
+  }
+
+  return {
+    totalVisitors: current.totalVisitors,
+    eligibleVisitors: current.eligibleVisitors,
+    nonInfantVisitors: current.nonInfantVisitors,
+    baseSubtotal: current.baseSubtotal,
+    totalSavings: current.totalSavings,
+    grandTotal: current.grandTotal,
+    breakdown: current.breakdown,
+    appliedGroupPromoLabel: current.appliedGroupPromoLabel,
     overtimeMinutes,
     overtimeGuestsCount,
     overtimeFee,
     grandTotalWithOvertime,
+    optimization,
   };
 }

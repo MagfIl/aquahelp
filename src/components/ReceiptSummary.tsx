@@ -1,12 +1,13 @@
 import React from 'react';
 import { CalculationResult, DayType, ZoneType, DurationType } from '../types';
-import { Receipt, CheckCircle2, Clock } from 'lucide-react';
+import { Receipt, CheckCircle2, Clock, Sparkles, ArrowRightLeft, Info } from 'lucide-react';
 
 interface ReceiptSummaryProps {
   calculation: CalculationResult;
   day: DayType;
   zone: ZoneType;
   duration: DurationType;
+  onApplyOptimization?: () => void;
 }
 
 export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
@@ -14,6 +15,7 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
   day,
   zone,
   duration,
+  onApplyOptimization,
 }) => {
   const {
     totalVisitors,
@@ -25,6 +27,7 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
     overtimeGuestsCount,
     overtimeFee,
     grandTotalWithOvertime,
+    optimization,
   } = calculation;
 
   const durationLabels: Record<DurationType, string> = {
@@ -45,24 +48,24 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
 
   if (totalVisitors === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 text-center flex flex-col items-center justify-center min-h-[380px]">
-        <div className="w-14 h-14 rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-4 border border-sky-100 dark:border-sky-900/40">
-          <Receipt className="w-7 h-7" />
+      <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-8 text-center flex flex-col items-center justify-center min-h-[200px] sm:min-h-[360px] transition-colors shadow-xs">
+        <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center mb-3 sm:mb-4 border border-sky-100 dark:border-sky-900/40">
+          <Receipt className="w-5 h-5 sm:w-7 sm:h-7" />
         </div>
-        <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">
+        <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-200">
           Чек пуст
         </h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mt-1">
-          Укажите количество посетителей в панели слева для мгновенного расчета стоимости билетов.
+        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-xs mt-1">
+          Укажите количество посетителей в блоке слева для мгновенного расчета стоимости билетов.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
+    <div id="receipt-card" className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden transition-colors">
       {/* Header Banner */}
-      <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+      <div className="p-3.5 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
         <div className="flex items-center justify-between gap-2 mb-2">
           <div className="flex items-center gap-2">
             <Receipt className="w-4 h-4 text-sky-600 dark:text-sky-400" />
@@ -76,18 +79,18 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
         </div>
 
         {/* Grand Total Highlight */}
-        <div className="flex items-baseline justify-between gap-4 mt-2">
+        <div className="flex items-baseline justify-between gap-3 mt-1 sm:mt-2">
           <div>
-            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-slate-950 dark:text-white tabular-nums tracking-tight">
+            <div className="text-2xl sm:text-4xl font-extrabold font-mono text-slate-950 dark:text-white tabular-nums tracking-tight">
               {grandTotalWithOvertime.toLocaleString('ru-RU')} ₽
             </div>
 
             {/* Savings & Overtime indicators */}
             <div className="space-y-0.5 mt-1">
               {totalSavings > 0 && (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>Экономия по акциям: </span>
+                  <span>Экономия: </span>
                   <strong className="font-mono tabular-nums">
                     {totalSavings.toLocaleString('ru-RU')} ₽
                   </strong>
@@ -95,9 +98,9 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
               )}
 
               {overtimeFee > 0 && (
-                <div className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-1.5 text-[11px] sm:text-xs font-medium text-amber-600 dark:text-amber-400">
                   <Clock className="w-3.5 h-3.5 shrink-0" />
-                  <span>Включая перелимит ({overtimeMinutes} мин × {overtimeGuestsCount} чел): </span>
+                  <span>Перелимит ({overtimeMinutes}м × {overtimeGuestsCount}г): </span>
                   <strong className="font-mono tabular-nums">
                     +{overtimeFee.toLocaleString('ru-RU')} ₽
                   </strong>
@@ -106,9 +109,9 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
             </div>
           </div>
 
-          <div className="text-right text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
-            <div>{durationLabels[duration]}</div>
-            <div className="font-medium text-slate-700 dark:text-slate-300">
+          <div className="text-right text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 space-y-0.5 shrink-0">
+            <div className="font-semibold text-slate-800 dark:text-slate-200">{durationLabels[duration]}</div>
+            <div className="text-slate-600 dark:text-slate-400">
               {dayLabels[day]}
             </div>
           </div>
@@ -116,15 +119,73 @@ export const ReceiptSummary: React.FC<ReceiptSummaryProps> = ({
 
         {/* Active Promos Badge */}
         {appliedGroupPromoLabel && (
-          <div className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-sky-100/70 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/80">
+          <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-semibold bg-sky-100/70 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800/80">
             <span>Применена: {appliedGroupPromoLabel}</span>
           </div>
         )}
       </div>
 
+      {/* Smart Optimization Alert (More Profitable Option Found!) */}
+      {optimization?.hasBetterOption && onApplyOptimization && (
+        <div className="p-3 sm:p-4 mx-3 sm:mx-5 my-3 sm:my-4 rounded-xl bg-amber-50/90 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 shadow-xs">
+          <div className="flex items-start gap-2 sm:gap-2.5">
+            <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                <span className="text-xs font-extrabold text-amber-950 dark:text-amber-200 uppercase tracking-wider">
+                  💡 Найдено более выгодное решение!
+                </span>
+                <span className="text-[11px] sm:text-xs font-bold font-mono text-emerald-800 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-300/60 dark:border-emerald-800">
+                  Экономия: {optimization.savingsAmount.toLocaleString('ru-RU')} ₽
+                </span>
+              </div>
+
+              <p className="text-xs text-amber-900 dark:text-amber-200 mt-1 sm:mt-1.5 leading-relaxed font-medium">
+                {optimization.reason}
+              </p>
+
+              <div className="mt-1.5 text-[10px] sm:text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
+                {breakdown.some((b) => b.isPrivileged) ? (
+                  <span>
+                    📌 <strong>Памятка оператору:</strong> при применении скидок на чек льготный тариф выгоден <em>только при выборе тарифа на весь день</em>. На 2 и 4 часа стандартный взрослый со скидкой дешевле льготного, и гостю не потребуется предъявлять документы!
+                  </span>
+                ) : (
+                  <span>
+                    📌 Нажмите кнопку ниже, чтобы автоматически применить скидку 30% на компанию от 4 гостей к текущему чеку.
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-2.5 sm:mt-3">
+                <button
+                  type="button"
+                  onClick={onApplyOptimization}
+                  className="w-full sm:w-auto px-3 sm:px-3.5 py-1.5 text-xs font-bold rounded-lg bg-amber-600 hover:bg-amber-500 active:scale-98 text-white shadow-xs transition-all cursor-pointer inline-flex items-center justify-center gap-1.5"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Применить выгодный вариант ({optimization.optimizedTotal.toLocaleString('ru-RU')} ₽)
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassurance note on All-Day visits */}
+      {duration === 'all_day' && breakdown.some((b) => b.isPrivileged) && (
+        <div className="mx-3 sm:mx-5 my-2.5 sm:my-3 p-2 sm:p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 text-[10px] sm:text-[11px] text-sky-800 dark:text-sky-300 flex items-center gap-2">
+          <Info className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400" />
+          <span>
+            На тарифе «Весь день» льготный тариф является самым выгодным вариантом для пенсионеров и льготников.
+          </span>
+        </div>
+      )}
+
       {/* Itemized Table */}
-      <div className="p-5">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+      <div className="p-3.5 sm:p-5">
+        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 sm:mb-3">
           Детализация билетов
         </h4>
 

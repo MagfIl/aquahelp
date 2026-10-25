@@ -39,6 +39,18 @@ export interface TicketBreakdownItem {
   isPrivileged?: boolean;
 }
 
+export interface OptimizationRecommendation {
+  hasBetterOption: boolean;
+  savingsAmount: number;
+  currentTotal: number;
+  optimizedTotal: number;
+  reason: string;
+  recommendedCounts: GuestCounts;
+  recommendedGroupPromo?: GroupDiscountType;
+  adultDiscountedPrice: number;
+  privilegePrice: number;
+}
+
 export interface CalculationResult {
   totalVisitors: number;
   eligibleVisitors: number; // adult + teen + child
@@ -52,4 +64,5 @@ export interface CalculationResult {
   overtimeGuestsCount: number;
   overtimeFee: number;
   grandTotalWithOvertime: number;
+  optimization: OptimizationRecommendation | null;
 }

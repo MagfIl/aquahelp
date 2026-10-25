@@ -21,28 +21,28 @@ export const OvertimeCalculator: React.FC<OvertimeCalculatorProps> = ({
   const overtimeFee = currentOvertimeMinutes * 10 * overtimeGuestsCount;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm transition-colors">
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+    <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 shadow-xs transition-colors">
+      <div className="flex items-center justify-between gap-1.5 mb-1.5 sm:mb-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-600 dark:text-sky-400 shrink-0" />
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-            Доплата за превышение времени
+            Доплата за время
           </h4>
         </div>
-        <span className="text-[11px] font-bold text-sky-700 dark:text-sky-300 font-mono bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800/60">
+        <span className="text-[10px] sm:text-[11px] font-bold text-sky-700 dark:text-sky-300 font-mono bg-sky-50 dark:bg-sky-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800/60 shrink-0">
           10 ₽ / мин / гость
         </span>
       </div>
 
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+      <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-2.5 sm:mb-3">
         Тарифицируется 10 ₽ за каждую минуту с каждого гостя (малыши до 4 лет освобождены от доплаты).
       </p>
 
       {/* Inputs for Minutes and Guests Count */}
-      <div className="space-y-3">
+      <div className="space-y-2.5 sm:space-y-3">
         {/* Minutes input */}
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap min-w-[110px]">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <label className="text-[11px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
             Минут задержки:
           </label>
           <div className="relative flex-1">
