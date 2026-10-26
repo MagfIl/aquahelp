@@ -2,8 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: 'main' # Скрипт сработает при пуше в ветку main (замените на master, если нужно)
-
+    branches: 'main' 
 # Разрешаем скрипту управлять публикацией в GitHub Pages
 permissions:
   contents: read
