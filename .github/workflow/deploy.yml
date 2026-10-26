@@ -2,7 +2,7 @@ name: Generate Lock File
 
 on:
   push:
-    branches: 'main'
+    branches: 'main' #ondeploy
 
 permissions:
   contents: write
