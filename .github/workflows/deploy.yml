@@ -1,49 +1,30 @@
-name: Deploy to GitHub Pages
+name: Generate Lock File
 
 on:
   push:
-    branches: 'main' 
-# Разрешаем скрипту управлять публикацией в GitHub Pages
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+    branches: 'main'
 
-# Отменяем старые сборки, если новый пуш прилетел до того, как завершился прошлый деплой
-concurrency:
-  group: 'pages'
-  cancel-in-progress: true
+permissions:
+  contents: write
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps: deployment.outputs.page_url }}
+  generate-lock:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-size: 20 # Указываем актуальную версию Node.js
-          cache: 'npm'
+          node-version: 20
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Force generate package-lock
+        # Используем старую стратегию генерации, чтобы обойти баг 'edgesOut'
+        run: npm i --package-lock-only --legacy-peer-deps
 
-      - name: Build project
-        run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Commit and Push package-lock.json
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          path: './dist' # Vite собирает проект в папку dist по умолчанию
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          commit_message: "chore: auto-generate package-lock.json [skip ci]"
+          file_pattern: 'package-lock.json'
