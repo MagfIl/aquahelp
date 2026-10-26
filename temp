@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: 'gpages' # Скрипт сработает при пуше в gpages
+    branches: 'main'
 
 # Разрешаем скрипту собирать и публиковать сайт на GitHub Pages
 permissions:
