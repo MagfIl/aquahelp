@@ -2,10 +2,10 @@ name: Generate Lock File
 
 on:
   push:
-    branches: 'gpages' # Сработает при пуше в gpages
+    branches: 'main'
 
 permissions:
-  contents: write # Даем право GitHub Actions записывать файлы в репозиторий
+  contents: write
 
 jobs:
   generate-lock:
