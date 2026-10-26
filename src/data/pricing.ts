@@ -8,6 +8,7 @@ import {
   CalculationResult,
   TicketBreakdownItem,
   OptimizationRecommendation,
+  PricingMatrixType,
 } from '../types';
 
 export const PRICING_MATRIX = {
@@ -36,6 +37,7 @@ export const PRICING_MATRIX = {
     },
   },
 } as const;
+
 
 export const CATEGORY_INFO: Record<
   GuestCategory,
@@ -120,9 +122,11 @@ function computeRawTicketTotals(
   zone: ZoneType,
   duration: DurationType,
   counts: GuestCounts,
-  promos: PromosState
+  promos: PromosState,
+  customMatrix?: PricingMatrixType
 ) {
-  const prices = PRICING_MATRIX[day][zone][duration];
+  const matrixToUse = customMatrix || (PRICING_MATRIX as unknown as PricingMatrixType);
+  const prices = matrixToUse[day][zone][duration];
   const totalVisitors =
     counts.adult + counts.teen + counts.child + counts.infant + counts.privilege;
   const eligibleVisitors = counts.adult + counts.teen + counts.child;
@@ -318,18 +322,21 @@ export function calculateTickets(
   counts: GuestCounts,
   promos: PromosState,
   overtimeMinutesRaw: number,
-  customOvertimeGuestsCount?: number
+  customOvertimeGuestsCount?: number,
+  customMatrix?: PricingMatrixType,
+  overtimeRatePerMinute: number = 10
 ): CalculationResult {
-  const current = computeRawTicketTotals(day, zone, duration, counts, promos);
+  const current = computeRawTicketTotals(day, zone, duration, counts, promos, customMatrix);
 
-  // Overtime calculation: 10 rubles per minute PER GUEST (excluding infants!)
+  // Overtime calculation: rate per minute PER GUEST (excluding infants!)
   const overtimeGuestsCount =
     typeof customOvertimeGuestsCount === 'number'
       ? Math.max(0, Math.min(customOvertimeGuestsCount, current.nonInfantVisitors))
       : current.nonInfantVisitors;
 
+  const rate = Math.max(0, overtimeRatePerMinute);
   const overtimeMinutes = Math.max(0, overtimeMinutesRaw);
-  const overtimeFee = overtimeMinutes * 10 * overtimeGuestsCount;
+  const overtimeFee = overtimeMinutes * rate * overtimeGuestsCount;
   const grandTotalWithOvertime = current.grandTotal + overtimeFee;
 
   // Optimization Analysis:
@@ -350,12 +357,13 @@ export function calculateTickets(
     const rawGroup4 = computeRawTicketTotals(day, zone, duration, counts, {
       ...promos,
       groupPromo: 'group4',
-    });
+    }, customMatrix);
     if (rawGroup4.grandTotal < current.grandTotal) {
       const savings = current.grandTotal - rawGroup4.grandTotal;
       let reason = '';
+      const adultDiscountedPrice = Math.round(current.prices.adult * 0.7);
       if (counts.privilege > 0) {
-        reason = `В группе ${current.nonInfantVisitors} чел. доступна скидка «Группа от 4 человек (-30%)». На тарифе «${duration === 'all_day' ? 'Весь день' : duration}» льготный тариф (${current.prices.privilege} ₽) выгоднее взрослого со скидкой (1 400 ₽), поэтому льготный билет сохранён, а к остальным билетам применена скидка 30%!`;
+        reason = `В группе ${current.nonInfantVisitors} чел. доступна скидка «Группа от 4 человек (-30%)». На тарифе «${duration === 'all_day' ? 'Весь день' : duration}» льготный тариф (${current.prices.privilege} ₽) выгоднее взрослого со скидкой (${adultDiscountedPrice} ₽), поэтому льготный билет сохранён, а к остальным билетам применена скидка 30%!`;
       } else {
         reason = `В заказе ${current.nonInfantVisitors} гостей — доступна акция «Группа от 4 человек (-30%)»! Это снизит чек с ${current.grandTotal.toLocaleString('ru-RU')} ₽ до ${rawGroup4.grandTotal.toLocaleString('ru-RU')} ₽ (экономия: ${savings.toLocaleString('ru-RU')} ₽).`;
       }
@@ -383,7 +391,8 @@ export function calculateTickets(
       zone,
       duration,
       convertedCounts,
-      promos
+      promos,
+      customMatrix
     );
     if (rawConvertedCurrentPromo.grandTotal < current.grandTotal) {
       const savings = current.grandTotal - rawConvertedCurrentPromo.grandTotal;
@@ -407,7 +416,8 @@ export function calculateTickets(
         zone,
         duration,
         convertedCounts,
-        { ...promos, groupPromo: 'group4' }
+        { ...promos, groupPromo: 'group4' },
+        customMatrix
       );
       if (rawConvertedGroup4.grandTotal < current.grandTotal) {
         const savings = current.grandTotal - rawConvertedGroup4.grandTotal;

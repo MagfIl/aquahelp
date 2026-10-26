@@ -51,6 +51,29 @@ export interface OptimizationRecommendation {
   privilegePrice: number;
 }
 
+export type PageType = 'home' | 'calculator' | 'templates' | 'admin';
+
+export interface SupportTemplate {
+  id: string;
+  title: string;
+  content: string;
+  categories: string[];
+  updatedAt: string;
+}
+
+export type PricingMatrixType = {
+  [day in DayType]: {
+    [zone in ZoneType]: {
+      [duration in DurationType]: {
+        adult: number;
+        teen: number;
+        child: number;
+        privilege: number;
+      };
+    };
+  };
+};
+
 export interface CalculationResult {
   totalVisitors: number;
   eligibleVisitors: number; // adult + teen + child
@@ -66,3 +89,4 @@ export interface CalculationResult {
   grandTotalWithOvertime: number;
   optimization: OptimizationRecommendation | null;
 }
+

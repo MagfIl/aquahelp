@@ -7,6 +7,7 @@ interface OvertimeCalculatorProps {
   nonInfantVisitors: number;
   overtimeGuestsCount: number;
   onUpdateOvertimeGuestsCount: (count: number) => void;
+  overtimeRate?: number;
 }
 
 export const OvertimeCalculator: React.FC<OvertimeCalculatorProps> = ({
@@ -15,10 +16,12 @@ export const OvertimeCalculator: React.FC<OvertimeCalculatorProps> = ({
   nonInfantVisitors,
   overtimeGuestsCount,
   onUpdateOvertimeGuestsCount,
+  overtimeRate = 10,
 }) => {
   const quickMinutes = [10, 15, 30, 45, 60, 90];
 
-  const overtimeFee = currentOvertimeMinutes * 10 * overtimeGuestsCount;
+  const rate = Math.max(0, overtimeRate);
+  const overtimeFee = currentOvertimeMinutes * rate * overtimeGuestsCount;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 sm:p-5 shadow-xs transition-colors">
@@ -30,13 +33,14 @@ export const OvertimeCalculator: React.FC<OvertimeCalculatorProps> = ({
           </h4>
         </div>
         <span className="text-[10px] sm:text-[11px] font-bold text-sky-700 dark:text-sky-300 font-mono bg-sky-50 dark:bg-sky-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-sky-200 dark:border-sky-800/60 shrink-0">
-          10 ₽ / мин / гость
+          {rate} ₽ / мин / гость
         </span>
       </div>
 
       <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mb-2.5 sm:mb-3">
-        Тарифицируется 10 ₽ за каждую минуту с каждого гостя (малыши до 4 лет освобождены от доплаты).
+        Тарифицируется {rate} ₽ за каждую минуту с каждого гостя (малыши до 4 лет освобождены от доплаты).
       </p>
+
 
       {/* Inputs for Minutes and Guests Count */}
       <div className="space-y-2.5 sm:space-y-3">
@@ -145,7 +149,7 @@ export const OvertimeCalculator: React.FC<OvertimeCalculatorProps> = ({
                 Доплата за перелимит:
               </span>
               <div className="text-[11px] text-amber-700 dark:text-amber-400 font-mono mt-0.5">
-                {currentOvertimeMinutes} мин × 10 ₽ × {overtimeGuestsCount} чел
+                {currentOvertimeMinutes} мин × {rate} ₽ × {overtimeGuestsCount} чел
               </div>
             </div>
             <div className="text-lg font-bold font-mono text-amber-950 dark:text-amber-100 tabular-nums">

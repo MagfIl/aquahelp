@@ -1,17 +1,23 @@
 import React from 'react';
 import { PRICING_MATRIX } from '../data/pricing';
+import { PricingMatrixType } from '../types';
 import { X, Table2 } from 'lucide-react';
 
 interface PriceMatrixModalProps {
   isOpen: boolean;
   onClose: () => void;
+  matrix?: PricingMatrixType;
 }
 
 export const PriceMatrixModal: React.FC<PriceMatrixModalProps> = ({
   isOpen,
   onClose,
+  matrix,
 }) => {
   if (!isOpen) return null;
+
+  const activeMatrix = matrix || (PRICING_MATRIX as unknown as PricingMatrixType);
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6 bg-slate-900/60 backdrop-blur-xs">
@@ -52,67 +58,29 @@ export const PriceMatrixModal: React.FC<PriceMatrixModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
-                  {/* Aquatory */}
-                  <tr className="bg-sky-50/30 dark:bg-sky-950/20 font-sans font-semibold text-slate-800 dark:text-slate-200">
-                    <td colSpan={6} className="py-1.5 px-3 text-sky-700 dark:text-sky-300">
-                      Зона «Акватория» (водные аттракционы)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">2 часа</td>
-                    <td className="py-2 px-3 text-right">1 300 ₽</td>
-                    <td className="py-2 px-3 text-right">1 300 ₽</td>
-                    <td className="py-2 px-3 text-right">900 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 200 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">4 часа</td>
-                    <td className="py-2 px-3 text-right">1 600 ₽</td>
-                    <td className="py-2 px-3 text-right">1 600 ₽</td>
-                    <td className="py-2 px-3 text-right">1 100 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 200 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Весь день</td>
-                    <td className="py-2 px-3 text-right">2 000 ₽</td>
-                    <td className="py-2 px-3 text-right">2 000 ₽</td>
-                    <td className="py-2 px-3 text-right">1 400 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 200 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-
-                  {/* Aquaterra */}
-                  <tr className="bg-teal-50/30 dark:bg-teal-950/20 font-sans font-semibold text-slate-800 dark:text-slate-200">
-                    <td colSpan={6} className="py-1.5 px-3 text-teal-700 dark:text-teal-300">
-                      Зона «Акватория + АкваТерра» (бани и сауны)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">2 часа</td>
-                    <td className="py-2 px-3 text-right">1 900 ₽</td>
-                    <td className="py-2 px-3 text-right">1 900 ₽</td>
-                    <td className="py-2 px-3 text-right">1 500 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">4 часа</td>
-                    <td className="py-2 px-3 text-right">2 200 ₽</td>
-                    <td className="py-2 px-3 text-right">2 200 ₽</td>
-                    <td className="py-2 px-3 text-right">1 700 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Весь день</td>
-                    <td className="py-2 px-3 text-right">2 600 ₽</td>
-                    <td className="py-2 px-3 text-right">2 600 ₽</td>
-                    <td className="py-2 px-3 text-right">2 000 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
+                  {(['aquatory', 'aquaterra'] as const).map((z) => (
+                    <React.Fragment key={z}>
+                      <tr className={`font-sans font-semibold ${z === 'aquatory' ? 'bg-sky-50/30 dark:bg-sky-950/20 text-sky-700 dark:text-sky-300' : 'bg-teal-50/30 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300'}`}>
+                        <td colSpan={6} className="py-1.5 px-3">
+                          {z === 'aquatory' ? 'Зона «Акватория» (водные аттракционы)' : 'Зона «Акватория + АкваТерра» (бани и сауны)'}
+                        </td>
+                      </tr>
+                      {(['2h', '4h', 'all_day'] as const).map((d) => {
+                        const p = activeMatrix.weekday[z][d];
+                        const dLabel = d === '2h' ? '2 часа' : d === '4h' ? '4 часа' : 'Весь день';
+                        return (
+                          <tr key={d}>
+                            <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">{dLabel}</td>
+                            <td className="py-2 px-3 text-right">{p.adult.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right">{p.teen.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right">{p.child.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">{p.privilege.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -136,67 +104,29 @@ export const PriceMatrixModal: React.FC<PriceMatrixModalProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-mono">
-                  {/* Aquatory */}
-                  <tr className="bg-sky-50/30 dark:bg-sky-950/20 font-sans font-semibold text-slate-800 dark:text-slate-200">
-                    <td colSpan={6} className="py-1.5 px-3 text-sky-700 dark:text-sky-300">
-                      Зона «Акватория» (водные аттракционы)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">2 часа</td>
-                    <td className="py-2 px-3 text-right">2 000 ₽</td>
-                    <td className="py-2 px-3 text-right">2 000 ₽</td>
-                    <td className="py-2 px-3 text-right">1 400 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">4 часа</td>
-                    <td className="py-2 px-3 text-right">2 400 ₽</td>
-                    <td className="py-2 px-3 text-right">2 400 ₽</td>
-                    <td className="py-2 px-3 text-right">1 700 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Весь день</td>
-                    <td className="py-2 px-3 text-right">3 100 ₽</td>
-                    <td className="py-2 px-3 text-right">3 100 ₽</td>
-                    <td className="py-2 px-3 text-right">2 200 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">1 800 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-
-                  {/* Aquaterra */}
-                  <tr className="bg-teal-50/30 dark:bg-teal-950/20 font-sans font-semibold text-slate-800 dark:text-slate-200">
-                    <td colSpan={6} className="py-1.5 px-3 text-teal-700 dark:text-teal-300">
-                      Зона «Акватория + АкваТерра» (бани и сауны)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">2 часа</td>
-                    <td className="py-2 px-3 text-right">2 800 ₽</td>
-                    <td className="py-2 px-3 text-right">2 800 ₽</td>
-                    <td className="py-2 px-3 text-right">2 200 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">2 600 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">4 часа</td>
-                    <td className="py-2 px-3 text-right">3 200 ₽</td>
-                    <td className="py-2 px-3 text-right">3 200 ₽</td>
-                    <td className="py-2 px-3 text-right">2 500 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">2 600 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
-                  <tr>
-                    <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">Весь день</td>
-                    <td className="py-2 px-3 text-right">3 900 ₽</td>
-                    <td className="py-2 px-3 text-right">3 900 ₽</td>
-                    <td className="py-2 px-3 text-right">3 000 ₽</td>
-                    <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">2 600 ₽</td>
-                    <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
-                  </tr>
+                  {(['aquatory', 'aquaterra'] as const).map((z) => (
+                    <React.Fragment key={z}>
+                      <tr className={`font-sans font-semibold ${z === 'aquatory' ? 'bg-sky-50/30 dark:bg-sky-950/20 text-sky-700 dark:text-sky-300' : 'bg-teal-50/30 dark:bg-teal-950/20 text-teal-700 dark:text-teal-300'}`}>
+                        <td colSpan={6} className="py-1.5 px-3">
+                          {z === 'aquatory' ? 'Зона «Акватория» (водные аттракционы)' : 'Зона «Акватория + АкваТерра» (бани и сауны)'}
+                        </td>
+                      </tr>
+                      {(['2h', '4h', 'all_day'] as const).map((d) => {
+                        const p = activeMatrix.weekend[z][d];
+                        const dLabel = d === '2h' ? '2 часа' : d === '4h' ? '4 часа' : 'Весь день';
+                        return (
+                          <tr key={d}>
+                            <td className="py-2 px-3 font-sans text-slate-700 dark:text-slate-300">{dLabel}</td>
+                            <td className="py-2 px-3 text-right">{p.adult.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right">{p.teen.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right">{p.child.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right font-semibold text-amber-600 dark:text-amber-400">{p.privilege.toLocaleString('ru-RU')} ₽</td>
+                            <td className="py-2 px-3 text-right text-emerald-600 font-sans">0 ₽</td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>
