@@ -1,30 +1,47 @@
-name: Generate Lock File
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches: 'main'
 
+# Разрешаем скрипту собирать и публиковать сайт на GitHub Pages
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
 
 jobs:
-  generate-lock:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
-      - name: Force generate package-lock
-        # Используем старую стратегию генерации, чтобы обойти баг 'edgesOut'
-        run: npm i --package-lock-only --legacy-peer-deps
+      - name: Install dependencies
+        # Добавили флаг, чтобы обойти конфликт версий esbuild и Vite 8
+        run: npm ci --legacy-peer-deps 
 
-      - name: Commit and Push package-lock.json
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Build
+        run: npm run build # Vite собирает калькулятор «Суздаль АКВА» в папку dist
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          commit_message: "chore: auto-generate package-lock.json [skip ci]"
-          file_pattern: 'package-lock.json'
+          path: './dist' # Передаем сборку для публикации
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
