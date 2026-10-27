@@ -1,17 +1,7 @@
-import {
-  collection,
-  doc,
-  setDoc,
-  deleteDoc,
-  onSnapshot,
-  getDocs,
-  updateDoc,
-} from 'firebase/firestore';
-import { db } from './firebase';
-import { EmployeeProfile, SupportTemplate, TemplateStatus } from '../types';
+import { EmployeeProfile, SupportTemplate } from '../types';
 import { DEFAULT_TEMPLATES } from '../data/defaultTemplates';
 
-// Default Initial Profiles
+// Initial default employee profiles
 export const INITIAL_EMPLOYEES: EmployeeProfile[] = [
   {
     id: 'emp-dev-001',
@@ -37,16 +27,12 @@ export const INITIAL_EMPLOYEES: EmployeeProfile[] = [
 ];
 
 const LOCAL_STORAGE_KEYS = {
-  EMPLOYEES: 'suzdalaqua_employees_v3',
-  GLOBAL_TEMPLATES: 'suzdalaqua_global_templates_v2',
-  PERSONAL_TEMPLATES: 'suzdalaqua_personal_templates_v2',
+  EMPLOYEES: 'suzdalaqua_local_employees_v1',
+  GLOBAL_TEMPLATES: 'suzdalaqua_local_templates_v1',
+  PERSONAL_TEMPLATES: 'suzdalaqua_local_personal_templates_v1',
 };
 
-// ----------------------------------------------------
-// EMPLOYEES
-// ----------------------------------------------------
-const employeeListeners: Array<(list: EmployeeProfile[]) => void> = [];
-
+// Helper: read active session actor credentials to authorize server operations
 function getSessionActor(): { actorId?: string; actorPin?: string } {
   if (typeof window === 'undefined') return {};
   try {
@@ -62,6 +48,68 @@ function getSessionActor(): { actorId?: string; actorPin?: string } {
   }
   return {};
 }
+
+// ----------------------------------------------------
+// REAL-TIME EVENT STREAM (Server-Sent Events)
+// ----------------------------------------------------
+let eventSource: EventSource | null = null;
+let sseInitialized = false;
+
+function initEventSource() {
+  if (typeof window === 'undefined' || sseInitialized) return;
+  sseInitialized = true;
+
+  try {
+    eventSource = new EventSource('/api/events');
+
+    eventSource.addEventListener('employees', (e) => {
+      try {
+        const list = JSON.parse(e.data);
+        if (Array.isArray(list)) {
+          saveLocalEmployees(list);
+          notifyEmployeeListeners(list);
+        }
+      } catch (err) {
+        console.error('SSE employees parse error:', err);
+      }
+    });
+
+    eventSource.addEventListener('templates', (e) => {
+      try {
+        const list = JSON.parse(e.data);
+        if (Array.isArray(list)) {
+          saveLocalGlobalTemplates(list);
+          notifyGlobalTemplateListeners(list);
+        }
+      } catch (err) {
+        console.error('SSE templates parse error:', err);
+      }
+    });
+
+    eventSource.addEventListener('personalTemplates', (e) => {
+      try {
+        const list = JSON.parse(e.data);
+        if (Array.isArray(list)) {
+          saveLocalPersonalTemplates(list);
+          notifyPersonalTemplateListeners(list);
+        }
+      } catch (err) {
+        console.error('SSE personalTemplates parse error:', err);
+      }
+    });
+
+    eventSource.onerror = () => {
+      // Browser EventSource automatically attempts to reconnect on error
+    };
+  } catch (err) {
+    console.warn('Could not initialize SSE connection:', err);
+  }
+}
+
+// ----------------------------------------------------
+// EMPLOYEES
+// ----------------------------------------------------
+const employeeListeners: Array<(list: EmployeeProfile[]) => void> = [];
 
 function notifyEmployeeListeners(list: EmployeeProfile[]) {
   employeeListeners.forEach((fn) => {
@@ -92,7 +140,7 @@ export function getLocalEmployees(): EmployeeProfile[] {
       }
     }
   } catch (e) {
-    console.error('Error reading local employees:', e);
+    console.error('Failed to read local employees:', e);
   }
   return INITIAL_EMPLOYEES;
 }
@@ -102,111 +150,96 @@ export function saveLocalEmployees(list: EmployeeProfile[]) {
   localStorage.setItem(LOCAL_STORAGE_KEYS.EMPLOYEES, JSON.stringify(list));
 }
 
-export function subscribeEmployees(
-  onUpdate: (employees: EmployeeProfile[]) => void
-): () => void {
-  // Always immediately give current local data
-  onUpdate(getLocalEmployees());
+export function subscribeEmployees(callback: (list: EmployeeProfile[]) => void): () => void {
+  employeeListeners.push(callback);
+  // Send current cache immediately
+  callback(getLocalEmployees());
 
-  // Register in-memory reactive listener
-  employeeListeners.push(onUpdate);
+  initEventSource();
 
-  let unsubFirestore = () => {};
-  try {
-    const colRef = collection(db, 'employees');
-    unsubFirestore = onSnapshot(
-      colRef,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const list: EmployeeProfile[] = [];
-          snapshot.forEach((d) => {
-            const data = d.data() as any;
-            let pin = data.pin;
-            if (data.role === 'developer' && (!pin || pin === '0000')) {
-              pin = '000000';
-            } else if (pin && pin.length < 6) {
-              pin = pin.padEnd(6, '0');
-            }
-            list.push({
-              id: d.id,
-              name: data.name,
-              role: data.role,
-              pin: pin || '000000',
-              createdAt: data.createdAt || new Date().toISOString(),
-            });
-          });
-          saveLocalEmployees(list);
-          notifyEmployeeListeners(list);
-        } else {
-          // Seed defaults if collection is empty
-          INITIAL_EMPLOYEES.forEach(async (emp) => {
-            try {
-              await setDoc(doc(db, 'employees', emp.id), emp);
-            } catch (err) {
-              console.warn('Could not seed employee in Firestore:', err);
-            }
-          });
-        }
-      },
-      (err) => {
-        console.warn('Firestore employees snapshot error, using local fallback:', err);
+  // Fetch from server DB
+  fetch('/api/employees')
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((serverList: EmployeeProfile[]) => {
+      if (Array.isArray(serverList) && serverList.length > 0) {
+        saveLocalEmployees(serverList);
+        notifyEmployeeListeners(serverList);
       }
-    );
-  } catch (e) {
-    console.warn('Firestore subscribeEmployees failed, using local cache:', e);
-  }
+    })
+    .catch((err) => {
+      console.warn('Local server /api/employees unreachable, using local cache:', err.message);
+    });
 
   return () => {
-    const idx = employeeListeners.indexOf(onUpdate);
-    if (idx >= 0) {
-      employeeListeners.splice(idx, 1);
-    }
-    unsubFirestore();
+    const index = employeeListeners.indexOf(callback);
+    if (index >= 0) employeeListeners.splice(index, 1);
   };
 }
 
 export async function upsertEmployee(employee: EmployeeProfile): Promise<void> {
-  // Local first
+  // 1. Instant local optimistic update
   const current = getLocalEmployees();
-  const idx = current.findIndex((e) => e.id === employee.id);
+  const existingIdx = current.findIndex((e) => e.id === employee.id);
   let updated: EmployeeProfile[];
-  if (idx >= 0) {
+  if (existingIdx >= 0) {
     updated = [...current];
-    updated[idx] = employee;
+    updated[existingIdx] = employee;
   } else {
     updated = [...current, employee];
   }
   saveLocalEmployees(updated);
-  // Immediately notify all active listeners across the app
   notifyEmployeeListeners(updated);
 
-  // Firestore sync with actor authorization verification
+  // 2. Persist to server local database
+  const actor = getSessionActor();
   try {
-    const actor = getSessionActor();
-    const payload = {
-      id: employee.id,
-      name: employee.name,
-      role: employee.role,
-      pin: employee.pin,
-      createdAt: employee.createdAt,
-      ...(actor.actorId ? { actorId: actor.actorId, actorPin: actor.actorPin } : {}),
-    };
-    await setDoc(doc(db, 'employees', employee.id), payload);
-  } catch (e) {
-    console.warn('Firestore employee write error (saved locally):', e);
+    const res = await fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee, actorId: actor.actorId, actorPin: actor.actorPin }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Ошибка сервера: ${res.status}`);
+    }
+    const data = await res.json();
+    if (data.employee) {
+      // Sync confirmed state from server
+      const confirmed = getLocalEmployees().map((e) => (e.id === data.employee.id ? data.employee : e));
+      saveLocalEmployees(confirmed);
+      notifyEmployeeListeners(confirmed);
+    }
+  } catch (err: any) {
+    console.error('Server save employee error:', err.message);
+    throw err;
   }
 }
 
 export async function deleteEmployee(employeeId: string): Promise<void> {
-  const current = getLocalEmployees().filter((e) => e.id !== employeeId);
-  saveLocalEmployees(current);
-  // Immediately notify all active listeners across the app
-  notifyEmployeeListeners(current);
+  // 1. Instant local optimistic update
+  const current = getLocalEmployees();
+  const updated = current.filter((e) => e.id !== employeeId);
+  saveLocalEmployees(updated);
+  notifyEmployeeListeners(updated);
 
+  // 2. Persist to server local database
+  const actor = getSessionActor();
   try {
-    await deleteDoc(doc(db, 'employees', employeeId));
-  } catch (e) {
-    console.warn('Firestore employee delete error (removed locally):', e);
+    const res = await fetch(`/api/employees/${encodeURIComponent(employeeId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId: actor.actorId, actorPin: actor.actorPin }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Ошибка сервера: ${res.status}`);
+    }
+  } catch (err: any) {
+    console.error('Server delete employee error:', err.message);
+    throw err;
   }
 }
 
@@ -234,7 +267,7 @@ export function getLocalGlobalTemplates(): SupportTemplate[] {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch (e) {
-    console.error('Error reading local global templates:', e);
+    console.error('Failed to read local global templates:', e);
   }
   return DEFAULT_TEMPLATES;
 }
@@ -244,93 +277,88 @@ export function saveLocalGlobalTemplates(list: SupportTemplate[]) {
   localStorage.setItem(LOCAL_STORAGE_KEYS.GLOBAL_TEMPLATES, JSON.stringify(list));
 }
 
-export function subscribeGlobalTemplates(
-  onUpdate: (templates: SupportTemplate[]) => void
-): () => void {
-  onUpdate(getLocalGlobalTemplates());
-  globalTemplateListeners.push(onUpdate);
+export function subscribeGlobalTemplates(callback: (list: SupportTemplate[]) => void): () => void {
+  globalTemplateListeners.push(callback);
+  callback(getLocalGlobalTemplates());
 
-  let unsubFirestore = () => {};
-  try {
-    const colRef = collection(db, 'templates');
-    unsubFirestore = onSnapshot(
-      colRef,
-      (snapshot) => {
-        if (!snapshot.empty) {
-          const list: SupportTemplate[] = [];
-          snapshot.forEach((d) => {
-            list.push(d.data() as SupportTemplate);
-          });
-          saveLocalGlobalTemplates(list);
-          notifyGlobalTemplateListeners(list);
-        } else {
-          // Seed defaults
-          DEFAULT_TEMPLATES.forEach(async (tpl) => {
-            try {
-              await setDoc(doc(db, 'templates', tpl.id), tpl);
-            } catch (err) {
-              console.warn('Could not seed template in Firestore:', err);
-            }
-          });
-        }
-      },
-      (err) => {
-        console.warn('Firestore templates snapshot error, using local fallback:', err);
+  initEventSource();
+
+  fetch('/api/templates')
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((serverList: SupportTemplate[]) => {
+      if (Array.isArray(serverList) && serverList.length > 0) {
+        saveLocalGlobalTemplates(serverList);
+        notifyGlobalTemplateListeners(serverList);
       }
-    );
-  } catch (e) {
-    console.warn('Firestore subscribeGlobalTemplates failed:', e);
-  }
+    })
+    .catch((err) => {
+      console.warn('Local server /api/templates unreachable, using local cache:', err.message);
+    });
 
   return () => {
-    const idx = globalTemplateListeners.indexOf(onUpdate);
-    if (idx >= 0) {
-      globalTemplateListeners.splice(idx, 1);
-    }
-    unsubFirestore();
+    const index = globalTemplateListeners.indexOf(callback);
+    if (index >= 0) globalTemplateListeners.splice(index, 1);
   };
 }
 
 export async function upsertGlobalTemplate(template: SupportTemplate): Promise<void> {
   const current = getLocalGlobalTemplates();
-  const idx = current.findIndex((t) => t.id === template.id);
+  const existingIdx = current.findIndex((t) => t.id === template.id);
   let updated: SupportTemplate[];
-  if (idx >= 0) {
+  if (existingIdx >= 0) {
     updated = [...current];
-    updated[idx] = template;
+    updated[existingIdx] = template;
   } else {
-    updated = [template, ...current];
+    updated = [...current, template];
   }
   saveLocalGlobalTemplates(updated);
   notifyGlobalTemplateListeners(updated);
 
+  const actor = getSessionActor();
   try {
-    const actor = getSessionActor();
-    const payload = {
-      ...template,
-      text: template.content, // sync text/content
-      ...(actor.actorId ? { actorId: actor.actorId, actorPin: actor.actorPin } : {}),
-    };
-    await setDoc(doc(db, 'templates', template.id), payload);
-  } catch (e) {
-    console.warn('Firestore global template write error (saved locally):', e);
+    const res = await fetch('/api/templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template, actorId: actor.actorId, actorPin: actor.actorPin }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Ошибка сервера: ${res.status}`);
+    }
+  } catch (err: any) {
+    console.error('Server save global template error:', err.message);
+    throw err;
   }
 }
 
 export async function deleteGlobalTemplate(templateId: string): Promise<void> {
-  const current = getLocalGlobalTemplates().filter((t) => t.id !== templateId);
-  saveLocalGlobalTemplates(current);
-  notifyGlobalTemplateListeners(current);
+  const current = getLocalGlobalTemplates();
+  const updated = current.filter((t) => t.id !== templateId);
+  saveLocalGlobalTemplates(updated);
+  notifyGlobalTemplateListeners(updated);
 
+  const actor = getSessionActor();
   try {
-    await deleteDoc(doc(db, 'templates', templateId));
-  } catch (e) {
-    console.warn('Firestore global template delete error (removed locally):', e);
+    const res = await fetch(`/api/templates/${encodeURIComponent(templateId)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actorId: actor.actorId, actorPin: actor.actorPin }),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Ошибка сервера: ${res.status}`);
+    }
+  } catch (err: any) {
+    console.error('Server delete global template error:', err.message);
+    throw err;
   }
 }
 
 // ----------------------------------------------------
-// PERSONAL TEMPLATES (With Proposal & Moderation)
+// PERSONAL TEMPLATES
 // ----------------------------------------------------
 const personalTemplateListeners: Array<(list: SupportTemplate[]) => void> = [];
 
@@ -353,7 +381,7 @@ export function getLocalPersonalTemplates(): SupportTemplate[] {
       if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
-    console.error('Error reading personal templates:', e);
+    console.error('Failed to read local personal templates:', e);
   }
   return [];
 }
@@ -363,77 +391,69 @@ export function saveLocalPersonalTemplates(list: SupportTemplate[]) {
   localStorage.setItem(LOCAL_STORAGE_KEYS.PERSONAL_TEMPLATES, JSON.stringify(list));
 }
 
-export function subscribePersonalTemplates(
-  onUpdate: (templates: SupportTemplate[]) => void
-): () => void {
-  onUpdate(getLocalPersonalTemplates());
-  personalTemplateListeners.push(onUpdate);
+export function subscribePersonalTemplates(callback: (list: SupportTemplate[]) => void): () => void {
+  personalTemplateListeners.push(callback);
+  callback(getLocalPersonalTemplates());
 
-  let unsubFirestore = () => {};
-  try {
-    const colRef = collection(db, 'personal_templates');
-    unsubFirestore = onSnapshot(
-      colRef,
-      (snapshot) => {
-        const list: SupportTemplate[] = [];
-        snapshot.forEach((d) => {
-          list.push(d.data() as SupportTemplate);
-        });
-        saveLocalPersonalTemplates(list);
-        notifyPersonalTemplateListeners(list);
-      },
-      (err) => {
-        console.warn('Firestore personal templates error, using local fallback:', err);
+  initEventSource();
+
+  fetch('/api/personal-templates')
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then((serverList: SupportTemplate[]) => {
+      if (Array.isArray(serverList)) {
+        saveLocalPersonalTemplates(serverList);
+        notifyPersonalTemplateListeners(serverList);
       }
-    );
-  } catch (e) {
-    console.warn('Firestore subscribePersonalTemplates failed:', e);
-  }
+    })
+    .catch((err) => {
+      console.warn('Local server /api/personal-templates unreachable, using local cache:', err.message);
+    });
 
   return () => {
-    const idx = personalTemplateListeners.indexOf(onUpdate);
-    if (idx >= 0) {
-      personalTemplateListeners.splice(idx, 1);
-    }
-    unsubFirestore();
+    const index = personalTemplateListeners.indexOf(callback);
+    if (index >= 0) personalTemplateListeners.splice(index, 1);
   };
 }
 
 export async function upsertPersonalTemplate(template: SupportTemplate): Promise<void> {
   const current = getLocalPersonalTemplates();
-  const idx = current.findIndex((t) => t.id === template.id);
+  const existingIdx = current.findIndex((t) => t.id === template.id);
   let updated: SupportTemplate[];
-  if (idx >= 0) {
+  if (existingIdx >= 0) {
     updated = [...current];
-    updated[idx] = template;
+    updated[existingIdx] = template;
   } else {
-    updated = [template, ...current];
+    updated = [...current, template];
   }
   saveLocalPersonalTemplates(updated);
   notifyPersonalTemplateListeners(updated);
 
   try {
-    const actor = getSessionActor();
-    const payload = {
-      ...template,
-      text: template.content, // sync text/content
-      ...(actor.actorId ? { actorId: actor.actorId, actorPin: actor.actorPin } : {}),
-    };
-    await setDoc(doc(db, 'personal_templates', template.id), payload);
-  } catch (e) {
-    console.warn('Firestore personal template write error:', e);
+    await fetch('/api/personal-templates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ template }),
+    });
+  } catch (err: any) {
+    console.warn('Server save personal template fallback to local:', err.message);
   }
 }
 
 export async function deletePersonalTemplate(templateId: string): Promise<void> {
-  const current = getLocalPersonalTemplates().filter((t) => t.id !== templateId);
-  saveLocalPersonalTemplates(current);
-  notifyPersonalTemplateListeners(current);
+  const current = getLocalPersonalTemplates();
+  const updated = current.filter((t) => t.id !== templateId);
+  saveLocalPersonalTemplates(updated);
+  notifyPersonalTemplateListeners(updated);
 
   try {
-    await deleteDoc(doc(db, 'personal_templates', templateId));
-  } catch (e) {
-    console.warn('Firestore personal template delete error:', e);
+    await fetch(`/api/personal-templates/${encodeURIComponent(templateId)}`, {
+      method: 'DELETE',
+    });
+  } catch (err: any) {
+    console.warn('Server delete personal template fallback to local:', err.message);
   }
 }
 
@@ -441,11 +461,22 @@ export async function proposePersonalTemplate(templateId: string): Promise<void>
   const current = getLocalPersonalTemplates();
   const tpl = current.find((t) => t.id === templateId);
   if (!tpl) return;
-  const updated: SupportTemplate = { ...tpl, status: 'pending_approval' };
+  const updated: SupportTemplate = { ...tpl, status: 'pending_approval', updatedAt: new Date().toISOString() };
   await upsertPersonalTemplate(updated);
+
+  try {
+    await fetch(`/api/personal-templates/${encodeURIComponent(templateId)}/propose`, {
+      method: 'POST',
+    });
+  } catch (err: any) {
+    console.warn('Server propose personal template fallback to local:', err.message);
+  }
 }
 
 export async function approvePersonalTemplate(template: SupportTemplate): Promise<void> {
+  const actor = getSessionActor();
+
+  // Optimistic updates
   // 1. Add to global templates
   const globalTpl: SupportTemplate = {
     ...template,
@@ -460,14 +491,45 @@ export async function approvePersonalTemplate(template: SupportTemplate): Promis
   const updatedPersonal: SupportTemplate = {
     ...template,
     status: 'approved',
+    updatedAt: new Date().toISOString(),
   };
   await upsertPersonalTemplate(updatedPersonal);
+
+  try {
+    await fetch(`/api/personal-templates/${encodeURIComponent(template.id)}/moderate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'approve',
+        modifiedTemplate: template,
+        actorId: actor.actorId,
+        actorPin: actor.actorPin,
+      }),
+    });
+  } catch (err: any) {
+    console.warn('Server moderate personal template fallback:', err.message);
+  }
 }
 
 export async function rejectPersonalTemplate(templateId: string): Promise<void> {
+  const actor = getSessionActor();
   const current = getLocalPersonalTemplates();
   const tpl = current.find((t) => t.id === templateId);
   if (!tpl) return;
-  const updated: SupportTemplate = { ...tpl, status: 'rejected' };
+  const updated: SupportTemplate = { ...tpl, status: 'rejected', updatedAt: new Date().toISOString() };
   await upsertPersonalTemplate(updated);
+
+  try {
+    await fetch(`/api/personal-templates/${encodeURIComponent(templateId)}/moderate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'reject',
+        actorId: actor.actorId,
+        actorPin: actor.actorPin,
+      }),
+    });
+  } catch (err: any) {
+    console.warn('Server reject personal template fallback:', err.message);
+  }
 }
