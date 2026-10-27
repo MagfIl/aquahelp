@@ -1,17 +1,36 @@
-import { PricingMatrixType, SupportTemplate } from '../types';
+import { PricingMatrixType, SupportTemplate, PremiumPricesType, FireplaceConfigType } from '../types';
 import { PRICING_MATRIX } from './pricing';
 import { DEFAULT_TEMPLATES } from './defaultTemplates';
 
 const STORAGE_KEYS = {
   PRICES: 'suzdalaqua_prices_v1',
+  PREMIUM_PRICES: 'suzdalaqua_premium_prices_v1',
   OVERTIME_RATE: 'suzdalaqua_overtime_rate_v1',
+  FIREPLACE_RATE: 'suzdalaqua_fireplace_rate_v1',
   TEMPLATES: 'suzdalaqua_templates_v1',
-  ADMIN_PIN: 'suzdalaqua_admin_pin_v1',
-  ADMIN_AUTH: 'suzdalaqua_admin_auth_session',
 } as const;
 
 export const DEFAULT_OVERTIME_RATE = 10; // 10 ₽/мин
-export const DEFAULT_ADMIN_PIN = '2026';
+
+export const DEFAULT_PREMIUM_PRICES: PremiumPricesType = {
+  weekday: {
+    adult: 3800,
+    teen: 3800,
+    child: 2800,
+  },
+  weekend: {
+    adult: 5500,
+    teen: 5500,
+    child: 4100,
+  },
+};
+
+export const DEFAULT_FIREPLACE_CONFIG: FireplaceConfigType = {
+  enabled: false,
+  hours: 3,
+  hourlyRate: 8000,
+  minHours: 3,
+};
 
 // Event dispatch for live tab/component reactivity
 const STORE_UPDATE_EVENT = 'suzdalaqua_store_updated';
@@ -39,7 +58,6 @@ export function getStoredPricingMatrix(): PricingMatrixType {
     const raw = localStorage.getItem(STORAGE_KEYS.PRICES);
     if (!raw) return PRICING_MATRIX as unknown as PricingMatrixType;
     const parsed = JSON.parse(raw);
-    // basic sanity check
     if (parsed.weekday && parsed.weekend) {
       return parsed as PricingMatrixType;
     }
@@ -61,6 +79,50 @@ export function resetStoredPricingMatrix(): PricingMatrixType {
   }
   notifyStoreUpdated();
   return PRICING_MATRIX as unknown as PricingMatrixType;
+}
+
+// Premium Prices
+export function getStoredPremiumPrices(): PremiumPricesType {
+  if (typeof window === 'undefined') return DEFAULT_PREMIUM_PRICES;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PREMIUM_PRICES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.weekday && parsed.weekend) {
+        return parsed as PremiumPricesType;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading premium prices:', e);
+  }
+  return DEFAULT_PREMIUM_PRICES;
+}
+
+export function saveStoredPremiumPrices(prices: PremiumPricesType) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEYS.PREMIUM_PRICES, JSON.stringify(prices));
+  notifyStoreUpdated();
+}
+
+// Fireplace Rate
+export function getStoredFireplaceRate(): number {
+  if (typeof window === 'undefined') return DEFAULT_FIREPLACE_CONFIG.hourlyRate;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.FIREPLACE_RATE);
+    if (raw !== null) {
+      const val = parseInt(raw, 10);
+      if (!isNaN(val) && val >= 0) return val;
+    }
+  } catch (e) {
+    console.error('Error reading fireplace rate:', e);
+  }
+  return DEFAULT_FIREPLACE_CONFIG.hourlyRate;
+}
+
+export function saveStoredFireplaceRate(rate: number) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEYS.FIREPLACE_RATE, rate.toString());
+  notifyStoreUpdated();
 }
 
 // Overtime rate
@@ -114,51 +176,15 @@ export function resetStoredTemplates(): SupportTemplate[] {
   return DEFAULT_TEMPLATES;
 }
 
-// Admin PIN
-export function getStoredAdminPin(): string {
-  if (typeof window === 'undefined') return DEFAULT_ADMIN_PIN;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.ADMIN_PIN);
-    if (saved && saved.trim().length > 0) return saved.trim();
-  } catch (e) {
-    console.error('Error reading admin pin:', e);
-  }
-  return DEFAULT_ADMIN_PIN;
-}
-
-export function saveStoredAdminPin(newPin: string) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, newPin.trim());
-  notifyStoreUpdated();
-}
-
-// Admin Auth Session
-export function isStoredAdminAuth(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return sessionStorage.getItem(STORAGE_KEYS.ADMIN_AUTH) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-export function setStoredAdminAuth(isAuth: boolean) {
-  if (typeof window === 'undefined') return;
-  if (isAuth) {
-    sessionStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
-  } else {
-    sessionStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
-  }
-  notifyStoreUpdated();
-}
-
 // Backup JSON
 export function createBackupJson(): string {
   const backup = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     pricing: getStoredPricingMatrix(),
+    premiumPricing: getStoredPremiumPrices(),
     overtimeRate: getStoredOvertimeRate(),
+    fireplaceRate: getStoredFireplaceRate(),
     templates: getStoredTemplates(),
   };
   return JSON.stringify(backup, null, 2);
@@ -170,8 +196,14 @@ export function restoreBackupJson(jsonString: string): { success: boolean; error
     if (parsed.pricing && parsed.pricing.weekday && parsed.pricing.weekend) {
       saveStoredPricingMatrix(parsed.pricing);
     }
+    if (parsed.premiumPricing && parsed.premiumPricing.weekday && parsed.premiumPricing.weekend) {
+      saveStoredPremiumPrices(parsed.premiumPricing);
+    }
     if (typeof parsed.overtimeRate === 'number') {
       saveStoredOvertimeRate(parsed.overtimeRate);
+    }
+    if (typeof parsed.fireplaceRate === 'number') {
+      saveStoredFireplaceRate(parsed.fireplaceRate);
     }
     if (Array.isArray(parsed.templates)) {
       saveStoredTemplates(parsed.templates);

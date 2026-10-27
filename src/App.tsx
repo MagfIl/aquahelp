@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { PinLoginModal } from './components/PinLoginModal';
 import { NavigationHeader } from './components/NavigationHeader';
 import { HomePage } from './pages/HomePage';
 import { CalculatorPage, INITIAL_COUNTS, INITIAL_PROMOS } from './pages/CalculatorPage';
@@ -18,13 +20,13 @@ import {
   getStoredPricingMatrix,
   getStoredOvertimeRate,
   getStoredTemplates,
-  isStoredAdminAuth,
-  setStoredAdminAuth,
   subscribeToStore,
 } from './data/portalStore';
 
-export default function App() {
-  // Theme state with animated circular wave
+function AppContent() {
+  const { isAuthenticated, canAccessAdmin } = useAuth();
+
+  // Instant Theme Switcher without Lag
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('suzdalaqua_theme');
@@ -38,61 +40,15 @@ export default function App() {
     const root = document.documentElement;
     if (darkMode) {
       root.classList.add('dark');
-      document.body.classList.add('dark');
       localStorage.setItem('suzdalaqua_theme', 'dark');
     } else {
       root.classList.remove('dark');
-      document.body.classList.remove('dark');
       localStorage.setItem('suzdalaqua_theme', 'light');
     }
   }, [darkMode]);
 
-  const handleToggleTheme = (event?: React.MouseEvent<HTMLButtonElement>) => {
-    const nextMode = !darkMode;
-
-    if (
-      typeof document !== 'undefined' &&
-      'startViewTransition' in document &&
-      !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
-      const rect = event?.currentTarget.getBoundingClientRect();
-      const x = rect ? rect.left + rect.width / 2 : event?.clientX ?? window.innerWidth - 40;
-      const y = rect ? rect.top + rect.height / 2 : event?.clientY ?? 32;
-
-      const endRadius = Math.hypot(
-        Math.max(x, window.innerWidth - x),
-        Math.max(y, window.innerHeight - y)
-      );
-
-      const transition = (document as any).startViewTransition(() => {
-        setDarkMode(nextMode);
-      });
-
-      transition.ready
-        ?.then(() => {
-          const clipPath = [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`,
-          ];
-          document.documentElement.animate(
-            {
-              clipPath: nextMode ? clipPath : [...clipPath].reverse(),
-            },
-            {
-              duration: 450,
-              easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
-              pseudoElement: nextMode
-                ? '::view-transition-new(root)'
-                : '::view-transition-old(root)',
-            }
-          );
-        })
-        .catch(() => {
-          setDarkMode(nextMode);
-        });
-    } else {
-      setDarkMode(nextMode);
-    }
+  const handleToggleTheme = () => {
+    setDarkMode((prev) => !prev);
   };
 
   // Hash-based Page Routing: home | calculator | templates | admin
@@ -109,13 +65,25 @@ export default function App() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      setCurrentPage(getPageFromHash());
+      const page = getPageFromHash();
+      // If employee tries to open admin, redirect to home
+      if (page === 'admin' && !canAccessAdmin) {
+        setCurrentPage('home');
+        window.location.hash = '#/';
+      } else {
+        setCurrentPage(page);
+      }
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [canAccessAdmin]);
 
   const handleNavigate = (page: PageType) => {
+    if (page === 'admin' && !canAccessAdmin) {
+      setCurrentPage('home');
+      window.location.hash = '#/';
+      return;
+    }
     setCurrentPage(page);
     if (typeof window !== 'undefined') {
       window.location.hash = page === 'home' ? '#/' : `#/${page}`;
@@ -123,26 +91,16 @@ export default function App() {
     }
   };
 
-  // Admin Auth State
-  const [isAdminAuth, setIsAdminAuth] = useState<boolean>(isStoredAdminAuth);
-
-  const handleSetAdminAuth = (auth: boolean) => {
-    setStoredAdminAuth(auth);
-    setIsAdminAuth(auth);
-  };
-
-  // Dynamic Pricing, Overtime, and Templates Stores
+  // Dynamic Stores
   const [pricingMatrix, setPricingMatrix] = useState<PricingMatrixType>(getStoredPricingMatrix);
   const [overtimeRate, setOvertimeRate] = useState<number>(getStoredOvertimeRate);
   const [templates, setTemplates] = useState<SupportTemplate[]>(getStoredTemplates);
 
-  // Re-sync with store updates
   useEffect(() => {
     const unsubscribe = subscribeToStore(() => {
       setPricingMatrix(getStoredPricingMatrix());
       setOvertimeRate(getStoredOvertimeRate());
       setTemplates(getStoredTemplates());
-      setIsAdminAuth(isStoredAdminAuth());
     });
     return unsubscribe;
   }, []);
@@ -167,25 +125,33 @@ export default function App() {
     setCustomOvertimeGuests(undefined);
   }, []);
 
+  if (!isAuthenticated) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'dark' : ''}`}>
+        <PinLoginModal />
+      </div>
+    );
+  }
+
   return (
-    <div className={`min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors ${darkMode ? 'dark' : ''}`}>
-      {/* Universal Responsive Top Navigation Header */}
+    <div
+      className={`min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${
+        darkMode ? 'dark' : ''
+      }`}
+    >
+      {/* Top Navigation */}
       <NavigationHeader
         currentPage={currentPage}
         onNavigate={handleNavigate}
         darkMode={darkMode}
         onToggleTheme={handleToggleTheme}
-        isAdminAuth={isAdminAuth}
-        onResetCalculator={currentPage === 'calculator' ? handleResetCalculator : undefined}
-        onOpenPriceTable={currentPage === 'calculator' ? () => setIsPriceTableOpen(true) : undefined}
       />
 
-      {/* Main Page View */}
+      {/* Main Content */}
       <main className="flex-1">
         {currentPage === 'home' && (
           <HomePage
             onNavigate={handleNavigate}
-            isAdminAuth={isAdminAuth}
             templatesCount={templates.length}
             overtimeRate={overtimeRate}
           />
@@ -196,6 +162,7 @@ export default function App() {
             pricingMatrix={pricingMatrix}
             overtimeRate={overtimeRate}
             isPriceTableOpen={isPriceTableOpen}
+            onOpenPriceTable={() => setIsPriceTableOpen(true)}
             onClosePriceTable={() => setIsPriceTableOpen(false)}
             day={day}
             setDay={setDay}
@@ -216,16 +183,13 @@ export default function App() {
         )}
 
         {currentPage === 'templates' && (
-          <TemplatesPage
-            templates={templates}
-            onNavigate={handleNavigate}
-          />
+          <TemplatesPage templates={templates} onNavigate={handleNavigate} />
         )}
 
-        {currentPage === 'admin' && (
+        {currentPage === 'admin' && canAccessAdmin && (
           <AdminPage
-            isAdminAuth={isAdminAuth}
-            onSetAdminAuth={handleSetAdminAuth}
+            isAdminAuth={true}
+            onSetAdminAuth={() => {}}
             pricingMatrix={pricingMatrix}
             onUpdatePricingMatrix={setPricingMatrix}
             overtimeRate={overtimeRate}
@@ -237,16 +201,22 @@ export default function App() {
       </main>
 
       {/* Universal Footer */}
-      <footer className="mt-auto border-t border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900 py-3.5 px-3 sm:px-6 lg:px-8 text-center text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
-          <div>
-            Аквапарк «Суздаль АКВА» · ГТК «Суздаль» (ул. Коровники, 45)
-          </div>
-          <div className="font-mono text-[10px] sm:text-[11px] text-slate-400">
-            Портал оператора · Перелимит: {overtimeRate} ₽/мин с гостя
+      <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-3 px-3 sm:px-6 text-center text-[11px] text-slate-500 dark:text-slate-400">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
+          <div>Аквапарк «Суздаль АКВА» · ГТК «Суздаль» (ул. Коровники, 45)</div>
+          <div className="font-mono text-[10px] text-slate-400">
+            Портал оператора поддержки · Перелимит: {overtimeRate} ₽/мин
           </div>
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }

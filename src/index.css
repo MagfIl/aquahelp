@@ -11,44 +11,11 @@
   html, body {
     font-family: 'Comfortaa', cursive, system-ui, -apple-system, sans-serif;
   }
-  
-  /* Smooth theme transitions */
-  *,
-  *::before,
-  *::after {
-    transition: background-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-                color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  }
-}
-
-/* Water Ripple / Circular View Transition Animation */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-  mix-blend-mode: normal;
-}
-
-::view-transition-old(root) {
-  z-index: 1;
-}
-
-::view-transition-new(root) {
-  z-index: 9999;
-}
-
-.dark::view-transition-old(root) {
-  z-index: 9999;
-}
-
-.dark::view-transition-new(root) {
-  z-index: 1;
 }
 
 /* ========================================================
-   Aqua Wave Custom Scrollbar (Comfortaa & Water Theme)
+   Aqua Custom Scrollbar (Compact & High Performance)
    ======================================================== */
-/* Firefox */
 * {
   scrollbar-width: thin;
   scrollbar-color: #38bdf8 transparent;
@@ -58,59 +25,20 @@
   scrollbar-color: #0ea5e9 rgba(15, 23, 42, 0.3);
 }
 
-/* Chrome, Edge, Safari, Opera */
 ::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
   background: transparent;
-  border-radius: 9999px;
-}
-
-::-webkit-scrollbar-track:hover {
-  background: rgba(224, 242, 254, 0.3);
-}
-
-.dark ::-webkit-scrollbar-track:hover {
-  background: rgba(15, 23, 42, 0.4);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  background: #38bdf8;
   border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  transition: all 0.2s ease-in-out;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #0ea5e9 0%, #0369a1 100%);
-  border: 1.5px solid transparent;
-  background-clip: padding-box;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
-}
-
-::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #0284c7 0%, #075985 100%);
-}
-
-/* Dark mode thumb */
 .dark ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 70%, #0369a1 100%);
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: #0284c7;
 }
-
-.dark ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 60%, #0284c7 100%);
-  border: 1.5px solid transparent;
-  background-clip: padding-box;
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
-}
-
-.dark ::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #0284c7 0%, #0c4a6e 100%);
-}
-

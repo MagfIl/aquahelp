@@ -1,6 +1,17 @@
 export type DayType = 'weekday' | 'weekend';
 export type ZoneType = 'aquatory' | 'aquaterra';
 export type DurationType = '2h' | '4h' | 'all_day';
+export type TariffType = 'standard' | 'premium';
+
+export type UserRole = 'developer' | 'admin' | 'employee';
+
+export interface EmployeeProfile {
+  id: string;
+  name: string;
+  role: UserRole;
+  pin: string;
+  createdAt: string;
+}
 
 export type GuestCategory = 'adult' | 'teen' | 'child' | 'infant' | 'privilege';
 
@@ -53,12 +64,18 @@ export interface OptimizationRecommendation {
 
 export type PageType = 'home' | 'calculator' | 'templates' | 'admin';
 
+export type TemplateStatus = 'approved' | 'pending_approval' | 'rejected' | 'private';
+
 export interface SupportTemplate {
   id: string;
   title: string;
   content: string;
   categories: string[];
   updatedAt: string;
+  authorId?: string;
+  authorName?: string;
+  isPersonal?: boolean;
+  status?: TemplateStatus;
 }
 
 export type PricingMatrixType = {
@@ -74,10 +91,41 @@ export type PricingMatrixType = {
   };
 };
 
+export interface PremiumPricesType {
+  weekday: {
+    adult: number;
+    teen: number;
+    child: number;
+  };
+  weekend: {
+    adult: number;
+    teen: number;
+    child: number;
+  };
+}
+
+export interface FireplaceConfigType {
+  enabled: boolean;
+  hours: number;
+  hourlyRate: number;
+  minHours: number;
+}
+
+export interface UnitTicketPriceDetail {
+  id: string;
+  category: GuestCategory;
+  categoryName: string;
+  subLabel?: string;
+  quantity: number;
+  unitPriceWithDiscount: number;
+  originalUnitPrice: number;
+  hasDiscount: boolean;
+}
+
 export interface CalculationResult {
   totalVisitors: number;
-  eligibleVisitors: number; // adult + teen + child
-  nonInfantVisitors: number; // adult + teen + child + privilege (all except infant)
+  eligibleVisitors: number;
+  nonInfantVisitors: number;
   baseSubtotal: number;
   totalSavings: number;
   grandTotal: number;
@@ -88,5 +136,10 @@ export interface CalculationResult {
   overtimeFee: number;
   grandTotalWithOvertime: number;
   optimization: OptimizationRecommendation | null;
+  // New features
+  tariffType: TariffType;
+  fireplaceFee: number;
+  fireplaceHours: number;
+  grandTotalWithAll: number;
+  unitPricesBreakdown: UnitTicketPriceDetail[];
 }
-

@@ -1,0 +1,131 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidPin(pin) {
+      return pin is string && pin.size() == 6 && pin.matches('^[0-9]{6}$');
+    }
+
+    function getActor(data) {
+      return get(/databases/$(database)/documents/employees/$(data.actorId)).data;
+    }
+
+    function hasActor(data) {
+      return 'actorId' in data && data.actorId is string && isValidId(data.actorId)
+        && 'actorPin' in data && isValidPin(data.actorPin);
+    }
+
+    function isActorVerified(data) {
+      return hasActor(data)
+        && exists(/databases/$(database)/documents/employees/$(data.actorId))
+        && getActor(data).pin == data.actorPin;
+    }
+
+    function isActorAdminOrDev(data) {
+      return isActorVerified(data)
+        && getActor(data).role in ['admin', 'developer'];
+    }
+
+    function isActorDeveloper(data) {
+      return isActorVerified(data)
+        && getActor(data).role == 'developer';
+    }
+
+    // --------------------------------------------------------
+    // EMPLOYEES COLLECTION
+    // --------------------------------------------------------
+    match /employees/{employeeId} {
+      allow read: if isValidId(employeeId);
+
+      // Create employee:
+      // - Bootstrap allows seeding default developer (emp-dev-001)
+      // - Creating any employee requires valid admin or dev actor
+      // - Assigning 'developer' role requires verified developer actor
+      allow create: if isValidId(employeeId)
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+        && request.resource.data.role in ['developer', 'admin', 'employee']
+        && isValidPin(request.resource.data.pin)
+        && (
+          (!exists(/databases/$(database)/documents/employees/emp-dev-001) && employeeId == 'emp-dev-001')
+          ||
+          (
+            isActorAdminOrDev(request.resource.data)
+            && (request.resource.data.role != 'developer' || isActorDeveloper(request.resource.data))
+          )
+        );
+
+      // Update employee:
+      // - Cannot change existing developer unless actor is verified developer
+      // - Cannot elevate someone to developer unless actor is verified developer
+      // - Modifying any employee requires verified admin or developer
+      allow update: if isValidId(employeeId)
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 100
+        && request.resource.data.role in ['developer', 'admin', 'employee']
+        && isValidPin(request.resource.data.pin)
+        && (
+          (resource.data.role == 'developer' || request.resource.data.role == 'developer')
+            ? isActorDeveloper(request.resource.data)
+            : isActorAdminOrDev(request.resource.data)
+        );
+
+      // Delete employee:
+      // - A developer profile can NEVER be deleted
+      // - Only non-developer profiles may be deleted
+      allow delete: if isValidId(employeeId)
+        && resource.data.role != 'developer';
+    }
+
+    // --------------------------------------------------------
+    // GLOBAL TEMPLATES COLLECTION
+    // --------------------------------------------------------
+    match /templates/{templateId} {
+      allow read: if isValidId(templateId);
+
+      // Only admin or developer can create/update global templates
+      allow create, update: if isValidId(templateId)
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
+        && (
+          !exists(/databases/$(database)/documents/templates/tpl-1)
+          || isActorAdminOrDev(request.resource.data)
+        );
+
+      allow delete: if isValidId(templateId);
+    }
+
+    // --------------------------------------------------------
+    // PERSONAL TEMPLATES COLLECTION
+    // --------------------------------------------------------
+    match /personal_templates/{templateId} {
+      allow read: if isValidId(templateId);
+
+      // Operator can create/update personal template
+      // Approving / publishing to global requires admin or developer
+      allow create, update: if isValidId(templateId)
+        && request.resource.data.title is string && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 200
+        && (
+          request.resource.data.status == 'approved'
+            ? isActorAdminOrDev(request.resource.data)
+            : true
+        );
+
+      allow delete: if isValidId(templateId);
+    }
+
+    // --------------------------------------------------------
+    // SETTINGS COLLECTION
+    // --------------------------------------------------------
+    match /settings/{settingId} {
+      allow read: if isValidId(settingId);
+      allow write: if isValidId(settingId)
+        && isActorAdminOrDev(request.resource.data);
+    }
+  }
+}

@@ -1,35 +1,37 @@
 import React from 'react';
-import { PromosState, GroupDiscountType } from '../types';
+import { PromosState, GuestCounts, TariffType } from '../types';
 import { Tag, Hotel, Users, Cake, Gift, AlertCircle, Percent } from 'lucide-react';
 
 interface PromotionControlsProps {
   promos: PromosState;
-  totalEligibleTickets: number; // adults + teens + children
-  totalGuests: number;
-  nonInfantGuests: number; // excluding toddlers
   onUpdatePromos: (updated: Partial<PromosState>) => void;
+  counts: GuestCounts;
+  tariffType?: TariffType;
 }
 
 export const PromotionControls: React.FC<PromotionControlsProps> = ({
   promos,
-  totalEligibleTickets,
-  totalGuests,
-  nonInfantGuests,
   onUpdatePromos,
+  counts,
+  tariffType = 'standard',
 }) => {
+  const isPremium = tariffType === 'premium';
+  const totalEligibleTickets = counts.adult + counts.teen + counts.child;
+  const nonInfantGuests = counts.adult + counts.teen + counts.child + (isPremium ? 0 : counts.privilege);
+  const isGroup4Eligible = nonInfantGuests >= 4;
+
   const maxCoupons = totalEligibleTickets;
   const remainingFor100 = Math.max(0, maxCoupons - promos.coupon60Count);
   const remainingFor60 = Math.max(0, maxCoupons - promos.coupon100Count);
-  const isGroup4Eligible = nonInfantGuests >= 4;
 
   return (
     <div className="space-y-3 sm:space-y-4">
-      {/* 1. Promotions on Entire Check / Group */}
+      {/* 1. Promotions on Entire Check / Group (Active on both Standard and Premium) */}
       <div>
         <div className="flex items-center justify-between gap-1 mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
             <Tag className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
-            <span>Акции на весь чек</span>
+            <span>Акции и промокоды {isPremium ? '(действуют на Премиум)' : 'на чек'}</span>
           </div>
           {isGroup4Eligible && promos.groupPromo === 'none' && (
             <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 sm:px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800 shrink-0">
@@ -153,7 +155,7 @@ export const PromotionControls: React.FC<PromotionControlsProps> = ({
               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {isGroup4Eligible
                   ? 'Скидка на компанию от 4 человек'
-                  : `Недоступно (${nonInfantGuests} из 4 гостей, малыши не в счёте)`}
+                  : `Недоступно (${nonInfantGuests} из 4 гостей)`}
               </p>
             </div>
           </button>
@@ -209,121 +211,118 @@ export const PromotionControls: React.FC<PromotionControlsProps> = ({
         )}
       </div>
 
-      {/* 2. Individual Coupons on Specific Guests */}
+      {/* 2. Individual Coupons on Specific Guests (Disabled on Premium) */}
       <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
             <Gift className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
             <span>Купоны на отдельных гостей</span>
           </div>
-          <span className="text-[11px] text-slate-400 dark:text-slate-400">
-            Доступно билетов: {totalEligibleTickets}
-          </span>
+          {!isPremium && (
+            <span className="text-[11px] text-slate-400 dark:text-slate-400">
+              Доступно билетов: {totalEligibleTickets}
+            </span>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
-          {/* Coupon 100% (Free Ticket) */}
-          <div className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Купон 100%
-                </span>
-                <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800/60">
-                  Бесплатно (-100%)
+        {isPremium ? (
+          <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-800/40 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>
+              На тарифе «Премиум» купоны (100% и 60%) не действуют согласно правилам аквапарка.
+            </span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
+            {/* Coupon 100% (Free Ticket) */}
+            <div className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Купон 100%
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800/60">
+                    Бесплатно (-100%)
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                  {promos.coupon100Count} гост.
                 </span>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                {promos.coupon100Count} гост.
-              </span>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdatePromos({
+                      coupon100Count: Math.max(0, promos.coupon100Count - 1),
+                    })
+                  }
+                  disabled={promos.coupon100Count === 0}
+                  className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  − 1 гость
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdatePromos({
+                      coupon100Count: Math.min(remainingFor100, promos.coupon100Count + 1),
+                    })
+                  }
+                  disabled={promos.coupon100Count >= remainingFor100}
+                  className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  + 1 гость
+                </button>
+              </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdatePromos({
-                    coupon100Count: Math.max(0, promos.coupon100Count - 1),
-                  })
-                }
-                disabled={promos.coupon100Count === 0}
-                className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                − 1 гость
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdatePromos({
-                    coupon100Count: Math.min(
-                      remainingFor100,
-                      promos.coupon100Count + 1
-                    ),
-                  })
-                }
-                disabled={promos.coupon100Count >= remainingFor100}
-                className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                + 1 гость
-              </button>
-            </div>
-          </div>
-
-          {/* Coupon 60% */}
-          <div className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                  Купон 60%
-                </span>
-                <span className="text-[10px] sm:text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-200 dark:border-purple-800/60">
-                  -60%
+            {/* Coupon 60% */}
+            <div className="p-2.5 sm:p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Купон 60%
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.2 rounded border border-purple-200 dark:border-purple-800/60">
+                    -60%
+                  </span>
+                </div>
+                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                  {promos.coupon60Count} гост.
                 </span>
               </div>
-              <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                {promos.coupon60Count} гост.
-              </span>
-            </div>
 
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdatePromos({
-                    coupon60Count: Math.max(0, promos.coupon60Count - 1),
-                  })
-                }
-                disabled={promos.coupon60Count === 0}
-                className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                − 1 гость
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  onUpdatePromos({
-                    coupon60Count: Math.min(
-                      remainingFor60,
-                      promos.coupon60Count + 1
-                    ),
-                  })
-                }
-                disabled={promos.coupon60Count >= remainingFor60}
-                className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-              >
-                + 1 гость
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdatePromos({
+                      coupon60Count: Math.max(0, promos.coupon60Count - 1),
+                    })
+                  }
+                  disabled={promos.coupon60Count === 0}
+                  className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  − 1 гость
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdatePromos({
+                      coupon60Count: Math.min(remainingFor60, promos.coupon60Count + 1),
+                    })
+                  }
+                  disabled={promos.coupon60Count >= remainingFor60}
+                  className="flex-1 py-1.5 text-xs font-semibold rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                >
+                  + 1 гость
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Notice on Privileged Tariff */}
-        <div className="mt-2.5 flex items-start gap-1.5 p-2 rounded-lg bg-slate-100/70 dark:bg-slate-800/40 text-[10px] sm:text-[11px] text-slate-600 dark:text-slate-400">
-          <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
-          <span>
-            Правило аквапарка: Купоны (100%, 60%) и промокоды действуют только на стандартные билеты (взрослые, тинейджеры, дети). Тариф «Льготный» имеет фиксированную цену и не суммируется с акциями.
-          </span>
-        </div>
+        )}
       </div>
     </div>
   );

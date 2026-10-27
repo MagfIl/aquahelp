@@ -1,0 +1,140 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee profile with PIN and role for Suzdal Aqua workspace",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": ["developer", "admin", "employee"]
+        },
+        "pin": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 6
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "name", "role", "pin", "createdAt"]
+    },
+    "Template": {
+      "title": "Template",
+      "description": "Global quick response template for chat support",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "categories": {
+          "type": "array"
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "title", "text", "categories"]
+    },
+    "PersonalTemplate": {
+      "title": "PersonalTemplate",
+      "description": "Personal template created by an employee",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "authorId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 5000
+        },
+        "categories": {
+          "type": "array"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["private", "pending_approval", "approved"]
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "authorId", "title", "text", "categories", "status"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global pricing and calculator configuration",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "pricing": {
+          "type": "object"
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "pricing"]
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Collection of employee credentials and roles"
+    },
+    "/templates/{templateId}": {
+      "schema": "Template",
+      "description": "Collection of global support answer templates"
+    },
+    "/personal_templates/{templateId}": {
+      "schema": "PersonalTemplate",
+      "description": "Collection of personal operator templates"
+    },
+    "/settings/{settingId}": {
+      "schema": "Settings",
+      "description": "Collection of system settings and tariff configurations"
+    }
+  }
+}
